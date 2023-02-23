@@ -6,6 +6,8 @@ import websocket
 
 from revChat.revChatGPT import Chatbot, configure
 
+import xml.etree.ElementTree as ET
+
 # config
 with open(".config/config.json", encoding="utf-8") as f:
     config = json.load(f)
@@ -50,8 +52,9 @@ DESTROY_ALL = 9999
 AGREE_TO_FRIEND_REQUEST = 10000
 
 # data
-global_dict = dict()
-
+chatbots = dict()
+global_context = {}
+room_replies = dict()
 
 def getid():
     id = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
@@ -83,10 +86,30 @@ def debug_switch():
     return s
 
 
-def handle_nick(j):
+def handle_nick_test(j):
     data = json.loads(j["content"])
     print("测试群成员昵称：" + data["nick"])
     return data["nick"]
+
+def handle_nick(j):
+    # print("handle_nick:", j)
+    data = json.loads(j["content"])
+    wx_id = data["wxid"]
+    room_id = data["roomid"]
+    
+    ws.send(send_at_meg(
+        wx_id=wx_id, 
+        room_id=room_id, 
+
+        # pop the first reply in the list
+        content=room_replies[(wx_id, room_id)].pop(0), 
+        nickname=data["nick"]))
+
+    # clear memory
+    if len(room_replies[(wx_id, room_id)]) == 0:
+        room_replies.pop((wx_id, room_id), None) 
+        
+
 
 
 def hanle_memberlist(j):
@@ -229,6 +252,10 @@ def handle_recv_txt_msg(j):
     room_id = ""
     content: str = j["content"]
 
+    is_mention = re.search('@'+ global_context["wx_name"], content) != None
+
+    print("is mention: ", is_mention)
+
     is_room: bool
     is_ask: bool = False
 
@@ -237,7 +264,7 @@ def handle_recv_txt_msg(j):
     if len(wx_id) < 9 or wx_id[-9] != "@":
         is_room = False
         wx_id: str = j["wxid"]
-        chatbot = global_dict.get((wx_id, ""))
+        chatbot = chatbots.get((wx_id, ""))
 
         if content.startswith(privateChatKey):
             is_ask = True
@@ -247,13 +274,16 @@ def handle_recv_txt_msg(j):
         is_room = True
         wx_id = j["id1"]
         room_id = j["wxid"]
-        chatbot = global_dict.get((wx_id, room_id))
+        chatbot = chatbots.get((wx_id, room_id))
 
         if content.startswith(groupChatKey):
             is_ask = True
-            content = re.sub(groupChatKey, "", content)
+            content = re.sub('@\S+\s+', "", content)
 
-    if autoReply and is_ask and ((not is_room and privateReplyMode) or (is_room and groupReplyMode)):
+
+    if autoReply and is_ask and ((not is_room and privateReplyMode) 
+        # check if it's mention
+        or (is_room and groupReplyMode and is_mention)):
         if chatbot is None:
             chatbot = Chatbot(
                 rev_config,
@@ -261,19 +291,31 @@ def handle_recv_txt_msg(j):
                 parent_id=None,
             )
             if is_room:
-                global_dict[(wx_id, room_id)] = chatbot
+                chatbots[(wx_id, room_id)] = chatbot
             else:
-                global_dict[(wx_id, "")] = chatbot
+                chatbots[(wx_id, "")] = chatbot
 
         print("ask:" + content)
-        reply = ""
+        reply = "" 
         for data in chatbot.ask(
                 prompt=content,
         ):
             reply += data["message"][len(reply):]
 
+        # reply = f"###testing, replying to {wx_id}..."
+
         if is_room:
-            ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
+            # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
+
+            # queue replies 
+            if not (wx_id, room_id) in room_replies:
+                room_replies[(wx_id, room_id)] = [reply]
+            else:
+                room_replies[(wx_id, room_id)].append(reply)
+            
+
+            ws.send(get_chat_nick_p(wx_id=wx_id, room_id=room_id))
+            # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
 
         else:
             ws.send(send_txt_msg(text_string=reply, wx_id=wx_id))
@@ -297,12 +339,27 @@ def handle_recv_pic_msg(j):
 
 
 def handle_recv_txt_cite(j):
-    content = j["content"]
     print(j)
+    data = j["content"]
+    root = ET.fromstring(data["content"])
 
+    title = root[0][0].text
+
+    msg = {
+        'id1': data["id2"],
+        'wxid': data["id1"],
+        'content': title
+    }
+
+    handle_recv_txt_msg(msg)
 
 def handle_heartbeat(j):
     print(j)
+
+def handle_personal_info(j):
+    print(j)
+    content = json.loads(j["content"])
+    global_context["wx_name"] = content["wx_name"]
 
 
 def on_open(ws):
@@ -353,7 +410,7 @@ def on_message(ws, message):
         CHATROOM_MEMBER: hanle_memberlist,
         CHATROOM_MEMBER_NICK: handle_nick,
         DEBUG_SWITCH: print,
-        PERSONAL_INFO: print,
+        PERSONAL_INFO: handle_personal_info,
         PERSONAL_DETAIL: print,
     }
 
@@ -366,7 +423,7 @@ def on_error(ws, error):
 
 
 def on_close(ws):
-    for key, value in global_dict:  # todo: still have bugs
+    for key, value in chatbots:  # todo: still have bugs
         print("clear conversation id:" + value.parent_id)
         value.clear_conversations()
 

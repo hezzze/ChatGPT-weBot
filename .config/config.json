@@ -2,9 +2,9 @@
   "server_host": "127.0.0.1:5555",
 
   "autoReply": true,
-  "groupChatKey": "-c",
-  "groupReplyMode": false,
-  "privateChatKey": "-c",
+  "groupChatKey": "",
+  "groupReplyMode": true,
+  "privateChatKey": "",
   "privateReplyMode": true,
 
   "helpKey": "-h",
