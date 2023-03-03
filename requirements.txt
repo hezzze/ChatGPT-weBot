@@ -1,3 +1,5 @@
 requests
 OpenAIAuth==0.3.2
 websocket_client==0.59.0
+tiktoken
+openai

@@ -3,8 +3,13 @@ import json
 import time
 import re
 import websocket
+import asyncio
 
-from revChat.revChatGPT import Chatbot, configure
+from revChat.revChatGPT import Chatbot as ChatGPTbotUnofficial, configure
+
+from bing.EdgeGPT import Chatbot as BingBot
+
+from revChat.V3 import Chatbot as ChatGPTbot
 
 import xml.etree.ElementTree as ET
 
@@ -23,6 +28,7 @@ helpKey = config["helpKey"]
 resetChatKey = config["resetChatKey"]
 regenerateKey = config["regenerateKey"]
 rollbackKey = config["rollbackKey"]
+enableBingChat = config["enableBingChat"]
 
 rev_config = configure()
 
@@ -55,6 +61,8 @@ AGREE_TO_FRIEND_REQUEST = 10000
 chatbots = dict()
 global_context = {}
 room_replies = dict()
+
+loop = asyncio.get_event_loop()
 
 def getid():
     id = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
@@ -259,7 +267,7 @@ def handle_recv_txt_msg(j):
     is_room: bool
     is_ask: bool = False
 
-    chatbot: Chatbot
+    # chatbot: ChatGPTbot
 
     if len(wx_id) < 9 or wx_id[-9] != "@":
         is_room = False
@@ -281,57 +289,113 @@ def handle_recv_txt_msg(j):
             content = re.sub('@\S+\s+', "", content)
 
 
-    if autoReply and is_ask and ((not is_room and privateReplyMode) 
+    if (not is_room or (is_room and is_mention)) and content.startswith(enableBingChat):
+        chatbot = BingBot(cookiePath="./.config/bing_cookies.json")
+        if is_room:
+            chatbots.pop((wx_id, room_id), None)
+            chatbots[(wx_id, room_id)] = chatbot
+        else:
+            chatbots.pop((wx_id, ""), None)
+            chatbots[(wx_id, "")] = chatbot
+        
+        __reply(wx_id, room_id, "<系统消息> 切换到 Bing chat...", is_room)
+    
+    elif (not is_room or (is_room and is_mention)) and content.startswith(resetChatKey):  # todo
+        if is_room:
+            chatbots.pop((wx_id, room_id), None)
+        else:
+            chatbots.pop((wx_id, ""), None)
+        __reply(wx_id, room_id, "<系统消息> 重置对话与设置...", is_room)
+
+    elif autoReply and is_ask and ((not is_room and privateReplyMode) 
         # check if it's mention
         or (is_room and groupReplyMode and is_mention)):
         if chatbot is None:
-            chatbot = Chatbot(
-                rev_config,
-                conversation_id=None,
-                parent_id=None,
-            )
+            chatbot = ChatGPTbot(api_key=rev_config["api_key"], proxy=rev_config["proxy"])
+            # chatbot = ChatGPTbotUnofficial(
+            #     rev_config,
+            #     conversation_id=None,
+            #     parent_id=None,
+            # )
             if is_room:
                 chatbots[(wx_id, room_id)] = chatbot
             else:
                 chatbots[(wx_id, "")] = chatbot
 
+            # chatbot = BingBot(cookiePath="./.config/bing_cookies.json")
+            # if is_room:
+            #     chatbots[(wx_id, room_id)] = chatbot
+            # else:
+            #     chatbots[(wx_id, "")] = chatbot
+
         print("ask:" + content)
         reply = "" 
-        for data in chatbot.ask(
-                prompt=content,
-        ):
-            reply += data["message"][len(reply):]
+
+        try: 
+
+            if isinstance(chatbot, ChatGPTbotUnofficial):
+                for data in chatbot.ask(
+                    prompt=content,
+                ):
+                    reply += data["message"][len(reply):]
+            elif isinstance(chatbot, BingBot):
+                reply = loop.run_until_complete(chatbot.ask(prompt=content))["item"]["messages"][1]["adaptiveCards"][
+                    0
+                ]["body"][0]["text"]
+            elif isinstance(chatbot, ChatGPTbot):
+                reply += chatbot.ask(content)
+        
+        except Exception as error:
+            print("!!!", error)
+            reply = "<系统信息>\n服务暂时不可用，请稍后尝试..."
 
         # reply = f"###testing, replying to {wx_id}..."
 
-        if is_room:
-            # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
+        __reply(wx_id, room_id, reply, is_room)
 
-            # queue replies 
-            if not (wx_id, room_id) in room_replies:
-                room_replies[(wx_id, room_id)] = [reply]
-            else:
-                room_replies[(wx_id, room_id)].append(reply)
+        # if is_room:
+        #     # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
+
+        #     # queue replies 
+        #     if not (wx_id, room_id) in room_replies:
+        #         room_replies[(wx_id, room_id)] = [reply]
+        #     else:
+        #         room_replies[(wx_id, room_id)].append(reply)
             
 
-            ws.send(get_chat_nick_p(wx_id=wx_id, room_id=room_id))
-            # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
+        #     ws.send(get_chat_nick_p(wx_id=wx_id, room_id=room_id))
+        #     # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
 
-        else:
-            ws.send(send_txt_msg(text_string=reply, wx_id=wx_id))
+        # else:
+        #     ws.send(send_txt_msg(text_string=reply, wx_id=wx_id))
         print("reply:" + reply)
-
-    elif content.startswith(resetChatKey):  # todo
-        pass
 
     elif content.startswith(regenerateKey):  # todo
         pass
 
     elif content.startswith(rollbackKey):  # todo
         pass
-
+        
     else:
         return
+
+
+def __reply(wx_id, room_id, reply, is_room=False):
+    if is_room:
+        # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
+
+        # queue replies 
+        if not (wx_id, room_id) in room_replies:
+            room_replies[(wx_id, room_id)] = [reply]
+        else:
+            room_replies[(wx_id, room_id)].append(reply)
+        
+
+        ws.send(get_chat_nick_p(wx_id=wx_id, room_id=room_id))
+        # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
+
+    else:
+        ws.send(send_txt_msg(text_string=reply, wx_id=wx_id))
 
 
 def handle_recv_pic_msg(j):
@@ -363,7 +427,7 @@ def handle_personal_info(j):
 
 
 def on_open(ws):
-    chatbot = Chatbot(
+    chatbot = ChatGPTbotUnofficial(
         rev_config,
         conversation_id=None,
         parent_id=None,

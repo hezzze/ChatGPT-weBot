@@ -8,7 +8,8 @@
   "privateReplyMode": true,
 
   "helpKey": "-h",
-  "resetChatKey": "-rs",
+  "resetChatKey": "!reset",
   "regenerateKey": "-rg",
-  "rollbackKey": "-rb"
+  "rollbackKey": "-rb",
+  "enableBingChat": "!bing"
 }

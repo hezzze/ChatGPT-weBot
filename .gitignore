@@ -1,2 +1,5 @@
 *idea/
 **/__pycache__
+
+.config/bing_cookies.json
+.config/revChatGPT
