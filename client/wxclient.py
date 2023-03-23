@@ -6,10 +6,11 @@ import websocket
 import asyncio
 
 from revChat.V1 import Chatbot as ChatGPTbotUnofficial, configure
-
 from bing.EdgeGPT import Chatbot as BingBot
-
 from revChat.V3 import Chatbot as ChatGPTbot
+
+from client.lib.task import *
+from client.lib.threads import *
 
 import xml.etree.ElementTree as ET
 
@@ -33,37 +34,16 @@ enableGPT4 = config["enableGPT4"]
 
 rev_config = configure()
 
-# Signal Number
-HEART_BEAT = 5005
-RECV_TXT_MSG = 1
-RECV_PIC_MSG = 3
-NEW_FRIEND_REQUEST = 37
-RECV_TXT_CITE_MSG = 49
-
-TXT_MSG = 555
-PIC_MSG = 500
-AT_MSG = 550
-
-USER_LIST = 5000
-GET_USER_LIST_SUCCSESS = 5001
-GET_USER_LIST_FAIL = 5002
-ATTACH_FILE = 5003
-CHATROOM_MEMBER = 5010
-CHATROOM_MEMBER_NICK = 5020
-
-DEBUG_SWITCH = 6000
-PERSONAL_INFO = 6500
-PERSONAL_DETAIL = 6550
-
-DESTROY_ALL = 9999
-AGREE_TO_FRIEND_REQUEST = 10000
-
 # data
 chatbots = dict()
 global_context = {}
 room_replies = dict()
 
+# threads
+global_thread = []
+
 loop = asyncio.get_event_loop()
+
 
 def getid():
     id = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
@@ -78,7 +58,7 @@ def get_chat_nick_p(wx_id, room_id):
         "roomid": room_id,
         "content": "",
         "nickname": "",
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -100,25 +80,26 @@ def handle_nick_test(j):
     print("测试群成员昵称：" + data["nick"])
     return data["nick"]
 
+
 def handle_nick(j):
     # print("handle_nick:", j)
     data = json.loads(j["content"])
     wx_id = data["wxid"]
     room_id = data["roomid"]
-    
-    ws.send(send_at_meg(
-        wx_id=wx_id, 
-        room_id=room_id, 
 
-        # pop the first reply in the list
-        content=room_replies[(wx_id, room_id)].pop(0), 
-        nickname=data["nick"]))
+    ws.send(
+        send_at_meg(
+            wx_id=wx_id,
+            room_id=room_id,
+            # pop the first reply in the list
+            content=room_replies[(wx_id, room_id)].pop(0),
+            nickname=data["nick"],
+        )
+    )
 
     # clear memory
     if len(room_replies[(wx_id, room_id)]) == 0:
-        room_replies.pop((wx_id, room_id), None) 
-        
-
+        room_replies.pop((wx_id, room_id), None)
 
 
 def hanle_memberlist(j):
@@ -136,7 +117,7 @@ def get_chatroom_memberlist():
         "roomid": "",
         "content": "",
         "nickname": "",
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -150,7 +131,7 @@ def send_at_meg(wx_id, room_id, content, nickname):
         "roomid": room_id,
         "content": content,
         "nickname": nickname,
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -186,7 +167,7 @@ def get_personal_info():
         "roomid": "",
         "content": "",
         "nickname": "",
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -200,7 +181,7 @@ def get_personal_detail(wx_id):
         "roomid": "",
         "content": "",
         "nickname": "",
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -214,7 +195,7 @@ def send_txt_msg(text_string, wx_id):
         "roomid": "",
         "content": text_string,  # 文本消息内容
         "nickname": "",
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -228,7 +209,7 @@ def send_wxuser_list():
         "roomid": "",
         "content": "",
         "nickname": "",
-        "ext": ""
+        "ext": "",
     }
     s = json.dumps(qs)
     return s
@@ -261,7 +242,7 @@ def handle_recv_txt_msg(j):
     room_id = ""
     content: str = j["content"]
 
-    is_mention = re.search('@'+ global_context["wx_name"], content) != None
+    is_mention = re.search("@" + global_context["wx_name"], content) != None
 
     print("is mention: ", is_mention)
 
@@ -287,8 +268,7 @@ def handle_recv_txt_msg(j):
 
         if content.startswith(groupChatKey):
             is_ask = True
-            content = re.sub('@\S+\s+', "", content)
-
+            content = re.sub("@\S+\s+", "", content)
 
     if (not is_room or (is_room and is_mention)) and content.startswith(enableBingChat):
         chatbot = BingBot(cookiePath="./.config/bing_cookies.json")
@@ -298,7 +278,7 @@ def handle_recv_txt_msg(j):
         else:
             chatbots.pop((wx_id, ""), None)
             chatbots[(wx_id, "")] = chatbot
-        
+
         __reply(wx_id, room_id, "<系统消息> 切换到 Bing chat...", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(enableGPT4):
@@ -313,22 +293,31 @@ def handle_recv_txt_msg(j):
         else:
             chatbots.pop((wx_id, ""), None)
             chatbots[(wx_id, "")] = chatbot
-        
+
         __reply(wx_id, room_id, "<系统消息> 切换到 GPT4 测试模式...", is_room)
-    
-    
-    elif (not is_room or (is_room and is_mention)) and content.startswith(resetChatKey):  # todo
+
+    elif (not is_room or (is_room and is_mention)) and content.startswith(
+        resetChatKey
+    ):  # todo
         if is_room:
             chatbots.pop((wx_id, room_id), None)
         else:
             chatbots.pop((wx_id, ""), None)
         __reply(wx_id, room_id, "<系统消息> 重置对话与设置...", is_room)
 
-    elif autoReply and is_ask and ((not is_room and privateReplyMode) 
-        # check if it's mention
-        or (is_room and groupReplyMode and is_mention)):
+    elif (
+        autoReply
+        and is_ask
+        and (
+            (not is_room and privateReplyMode)
+            # check if it's mention
+            or (is_room and groupReplyMode and is_mention)
+        )
+    ):
         if chatbot is None:
-            chatbot = ChatGPTbot(api_key=rev_config["api_key"], proxy=rev_config["proxy"])
+            chatbot = ChatGPTbot(
+                api_key=rev_config["api_key"], proxy=rev_config["proxy"]
+            )
             # chatbot = ChatGPTbotUnofficial(
             #     rev_config,
             #     conversation_id=None,
@@ -345,54 +334,15 @@ def handle_recv_txt_msg(j):
             # else:
             #     chatbots[(wx_id, "")] = chatbot
 
-        print("ask:" + content)
-        reply = "" 
-
-        try: 
-
-            if isinstance(chatbot, ChatGPTbotUnofficial):
-                for data in chatbot.ask(
-                    prompt=content,
-                ):
-                    reply += data["message"][len(reply):]
-            elif isinstance(chatbot, BingBot):
-                reply = loop.run_until_complete(chatbot.ask(prompt=content))["item"]["messages"][1]["adaptiveCards"][
-                    0
-                ]["body"][0]["text"]
-            elif isinstance(chatbot, ChatGPTbot):
-                reply += chatbot.ask(content)
-        
-        except Exception as error:
-            print("!!!", error)
-            reply = "<系统信息>\n服务暂时不可用，请稍后尝试..."
-
-        # reply = f"###testing, replying to {wx_id}..."
-
-        __reply(wx_id, room_id, reply, is_room)
-
-        # if is_room:
-        #     # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
-
-        #     # queue replies 
-        #     if not (wx_id, room_id) in room_replies:
-        #         room_replies[(wx_id, room_id)] = [reply]
-        #     else:
-        #         room_replies[(wx_id, room_id)].append(reply)
-            
-
-        #     ws.send(get_chat_nick_p(wx_id=wx_id, room_id=room_id))
-        #     # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
-
-        # else:
-        #     ws.send(send_txt_msg(text_string=reply, wx_id=wx_id))
-        print("reply:" + reply)
+        task = ChatTask(chatbot, ws, content, wx_id, room_id, is_room, room_replies)
+        chat_que.put(task)
 
     elif content.startswith(regenerateKey):  # todo
         pass
 
     elif content.startswith(rollbackKey):  # todo
         pass
-        
+
     else:
         return
 
@@ -401,12 +351,11 @@ def __reply(wx_id, room_id, reply, is_room=False):
     if is_room:
         # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
 
-        # queue replies 
+        # queue replies
         if not (wx_id, room_id) in room_replies:
             room_replies[(wx_id, room_id)] = [reply]
         else:
             room_replies[(wx_id, room_id)].append(reply)
-        
 
         ws.send(get_chat_nick_p(wx_id=wx_id, room_id=room_id))
         # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
@@ -426,16 +375,14 @@ def handle_recv_txt_cite(j):
 
     title = root[0][0].text
 
-    msg = {
-        'id1': data["id2"],
-        'wxid': data["id1"],
-        'content': title
-    }
+    msg = {"id1": data["id2"], "wxid": data["id1"], "content": title}
 
     handle_recv_txt_msg(msg)
 
+
 def handle_heartbeat(j):
     print(j)
+
 
 def handle_personal_info(j):
     print(j)
@@ -464,6 +411,10 @@ def on_open(ws):
 
     # ws.send(send_txt_msg())     # 向你的好友发送微信文本消息
 
+    for i in range(0, 2):
+        chat_processor = Processor(chat_que)
+        global_thread.append(chat_processor)
+
 
 def on_message(ws, message):
     j = json.loads(message)
@@ -478,16 +429,13 @@ def on_message(ws, message):
         RECV_PIC_MSG: handle_recv_pic_msg,
         NEW_FRIEND_REQUEST: print,
         RECV_TXT_CITE_MSG: handle_recv_txt_cite,
-
         TXT_MSG: print,
         PIC_MSG: print,
         AT_MSG: print,
-
         USER_LIST: handle_wxuser_list,
         GET_USER_LIST_SUCCSESS: handle_wxuser_list,
         GET_USER_LIST_FAIL: handle_wxuser_list,
         ATTACH_FILE: print,
-
         CHATROOM_MEMBER: hanle_memberlist,
         CHATROOM_MEMBER_NICK: handle_nick,
         DEBUG_SWITCH: print,
@@ -516,8 +464,6 @@ server = "ws://" + server_host
 
 websocket.enableTrace(True)
 
-ws = websocket.WebSocketApp(server,
-                            on_open=on_open,
-                            on_message=on_message,
-                            on_error=on_error,
-                            on_close=on_close)
+ws = websocket.WebSocketApp(
+    server, on_open=on_open, on_message=on_message, on_error=on_error, on_close=on_close
+)
