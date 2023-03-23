@@ -5,7 +5,7 @@ import re
 import websocket
 import asyncio
 
-from revChat.revChatGPT import Chatbot as ChatGPTbotUnofficial, configure
+from revChat.V1 import Chatbot as ChatGPTbotUnofficial, configure
 
 from bing.EdgeGPT import Chatbot as BingBot
 
@@ -29,6 +29,7 @@ resetChatKey = config["resetChatKey"]
 regenerateKey = config["regenerateKey"]
 rollbackKey = config["rollbackKey"]
 enableBingChat = config["enableBingChat"]
+enableGPT4 = config["enableGPT4"]
 
 rev_config = configure()
 
@@ -299,6 +300,22 @@ def handle_recv_txt_msg(j):
             chatbots[(wx_id, "")] = chatbot
         
         __reply(wx_id, room_id, "<系统消息> 切换到 Bing chat...", is_room)
+
+    elif (not is_room or (is_room and is_mention)) and content.startswith(enableGPT4):
+        chatbot = ChatGPTbotUnofficial(
+            rev_config,
+            conversation_id=None,
+            parent_id=None,
+        )
+        if is_room:
+            chatbots.pop((wx_id, room_id), None)
+            chatbots[(wx_id, room_id)] = chatbot
+        else:
+            chatbots.pop((wx_id, ""), None)
+            chatbots[(wx_id, "")] = chatbot
+        
+        __reply(wx_id, room_id, "<系统消息> 切换到 GPT4 测试模式...", is_room)
+    
     
     elif (not is_room or (is_room and is_mention)) and content.startswith(resetChatKey):  # todo
         if is_room:
@@ -427,17 +444,17 @@ def handle_personal_info(j):
 
 
 def on_open(ws):
-    chatbot = ChatGPTbotUnofficial(
-        rev_config,
-        conversation_id=None,
-        parent_id=None,
-    )
-    try:
-        chatbot.login()
-    except Exception:
-        raise Exception("Exception detected, check revChatGPT login config")
-    else:
-        print("\nChatGPT login test success!\n")
+    # chatbot = ChatGPTbotUnofficial(
+    #     rev_config,
+    #     conversation_id=None,
+    #     parent_id=None,
+    # )
+    # try:
+    #     chatbot.login()
+    # except Exception:
+    #     raise Exception("Exception detected, check revChatGPT login config")
+    # else:
+    #     print("\nChatGPT login test success!\n")
 
     # ws.send(send_wxuser_list())  # 获取微信通讯录好友列表
     # ws.send(get_chatroom_memberlist())

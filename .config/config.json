@@ -11,5 +11,6 @@
   "resetChatKey": "!reset",
   "regenerateKey": "-rg",
   "rollbackKey": "-rb",
-  "enableBingChat": "!bing"
+  "enableBingChat": "!bing",
+  "enableGPT4": "!gpt4"
 }
