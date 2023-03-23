@@ -2,6 +2,11 @@ import asyncio
 import json
 import time
 import threading
+import string
+import random
+import base64
+import os.path
+import websocket
 
 from shared import *
 from revChat.V1 import Chatbot as ChatGPTbotUnofficial
@@ -37,6 +42,20 @@ def send_txt_msg(text_string, wx_id):
         "wxid": wx_id,
         "roomid": "",
         "content": text_string,  # 文本消息内容
+        "nickname": "",
+        "ext": "",
+    }
+    s = json.dumps(qs)
+    return s
+
+
+def send_pic_msg(wx_id, content):
+    qs = {
+        "id": getid(),
+        "type": PIC_MSG,
+        "wxid": wx_id,
+        "roomid": "",
+        "content": content,
         "nickname": "",
         "ext": "",
     }
@@ -99,3 +118,99 @@ class ChatTask:
 
         else:
             self.ws.send(send_txt_msg(text_string=reply, wx_id=self.wx_id))
+
+
+class ImgTask:
+    def __init__(self, ws, prompt, wx_id, room_id, is_room, version):
+        self.ws = ws
+        self.prompt = prompt
+        self.wx_id = wx_id
+        self.room_id = room_id
+        self.is_room = is_room
+        self.version = version
+
+        self.img_ws = None
+        self.wssRq = {
+            "session_hash": "".join(
+                random.sample(string.ascii_lowercase + string.digits, 11)
+            ),
+            "fn_index": 3,
+        }
+        self.times = 0
+
+        if version == "2.1":
+            self.img_host = "wss://" + API_URL_v21
+        elif version == "1.5":
+            self.img_host = "wss://" + API_URL_v15
+
+    def on_open(self, img_ws):
+        self.times += 1
+        img_ws.send(json.dumps(self.wssRq))
+
+    def on_message(self, img_ws, message):
+        msg = json.loads(message)
+
+        if msg["msg"] == "queue_full":
+            if self.times < 5:
+                # raise
+                send_txt_msg(
+                    text_string="<系统信息>\n连接Stable diffuison 发生错误，请稍后尝试...",
+                    wx_id=self.room_id if self.is_room else self.wx_id,
+                )
+            else:
+                self.times += 1
+                img_ws.send(json.dumps(self.wssRq))
+
+        elif msg["msg"] == "send_data":
+            process = {
+                "data": [
+                    self.prompt[0],
+                    "" if len(self.prompt) == 1 else self.prompt[1],
+                    9,
+                ],
+                "fn_index": 3,
+            }
+            img_ws.send(json.dumps(process))
+
+        elif msg["msg"] == "process_starts":
+            print(message)
+
+        elif msg["msg"] == "process_completed":
+            for item in msg["output"]["data"][0]:
+                source_str = base64.urlsafe_b64decode(item[23:])
+                filename = self.wx_id + "_" + self.room_id + "_" + getid() + ".jpg"
+                if not os.path.exists(".cache/"):
+                    os.makedirs(cache_dir)
+                with open(cache_dir + filename, "wb") as file_object:
+                    file_object.write(source_str)
+                file_object.close()
+
+                self.ws.send(
+                    send_pic_msg(
+                        wx_id=self.room_id if self.is_room else self.wx_id,
+                        content=os.path.join(os.path.abspath(cache_dir), filename),
+                    )
+                )
+                time.sleep(1.0)
+                # if isCached:
+                #     print("Image cached! Name: " + cache_dir + filename)
+                # else:
+                #     os.remove(cache_dir + filename)
+                os.remove(cache_dir + filename)
+
+    def on_error(self, img_ws, error):
+        print(error)
+
+    def on_close(self, img_ws):
+        print("Stable Diffusion V" + self.version + " arts are done!")
+
+    def play(self):
+        self.img_ws = websocket.WebSocketApp(
+            self.img_host,
+            on_open=self.on_open,
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close,
+        )
+        self.img_ws.keep_running = False
+        self.img_ws.run_forever()

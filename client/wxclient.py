@@ -31,6 +31,8 @@ regenerateKey = config["regenerateKey"]
 rollbackKey = config["rollbackKey"]
 enableBingChat = config["enableBingChat"]
 enableGPT4 = config["enableGPT4"]
+sdImgKey = config["sdImgKey"]
+sdNegativePromptKey = config["sdNegativePromptKey"]
 
 rev_config = configure()
 
@@ -305,6 +307,13 @@ def handle_recv_txt_msg(j):
             chatbots.pop((wx_id, ""), None)
         __reply(wx_id, room_id, "<系统消息> 重置对话与设置...", is_room)
 
+    elif (not is_room or (is_room and is_mention)) and content.startswith(sdImgKey):
+        content = re.sub("^" + sdImgKey, "", content, 1).lstrip()
+        prompt_list = re.split(sdNegativePromptKey, content)
+
+        ig = ImgTask(ws, prompt_list, wx_id, room_id, is_room, "2.1")
+        img_que.put(ig)
+
     elif (
         autoReply
         and is_ask
@@ -414,6 +423,10 @@ def on_open(ws):
     for i in range(0, 2):
         chat_processor = Processor(chat_que)
         global_thread.append(chat_processor)
+
+    for i in range(0, 4):
+        image_processor = Processor(img_que)
+        global_thread.append(image_processor)
 
 
 def on_message(ws, message):
