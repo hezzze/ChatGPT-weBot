@@ -348,7 +348,14 @@ def handle_recv_txt_msg(j):
         __reply(wx_id, room_id, "<系统消息> 正在为您生成图片...", is_room)
         content = re.sub("^" + sdImgKey, "", content, 1).lstrip()
 
-        content = translate(content)
+        try:
+            content = translate(content)
+
+        except Exception as error:
+            print("!!", error)
+            reply = "<系统信息>\n服务不可用，请稍后尝试..."
+
+        print(f"-- prompt: {content}")
 
         prompt_list = re.split(sdNegativePromptKey, content)
 
