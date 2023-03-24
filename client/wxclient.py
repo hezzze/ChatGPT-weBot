@@ -4,6 +4,7 @@ import time
 import re
 import websocket
 import asyncio
+import requests
 
 from revChat.V1 import Chatbot as ChatGPTbotUnofficial, configure
 from bing.EdgeGPT import Chatbot as BingBot
@@ -13,6 +14,8 @@ from client.lib.task import *
 from client.lib.threads import *
 
 import xml.etree.ElementTree as ET
+
+from client.lib.local_config import local_config
 
 # config
 with open(".config/config.json", encoding="utf-8") as f:
@@ -33,8 +36,6 @@ enableBingChat = config["enableBingChat"]
 enableGPT4 = config["enableGPT4"]
 sdImgKey = config["sdImgKey"]
 sdNegativePromptKey = config["sdNegativePromptKey"]
-
-rev_config = configure()
 
 # data
 chatbots = dict()
@@ -237,6 +238,42 @@ def handle_wxuser_list(j):
             print(i, "个体", id, item["name"], item["wxcode"])
 
 
+def translate(content, api_key=local_config["api_key"], proxy=local_config["proxy"]):
+    session = requests.Session()
+    proxies = {
+        "http": proxy,
+        "https": proxy,
+    }
+    session.proxies.update(proxies)
+
+    response = session.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": "Bearer " + api_key},
+        json={
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": f"translate '{content}'  with only the translation",
+                }
+            ],
+            # kwargs
+            "temperature": 0.7,
+            "top_p": 1,
+            "n": 1,
+        },
+        stream=False,
+    )
+
+    if response.status_code != 200:
+        raise Exception(
+            f"Error: {response.status_code} {response.reason} {response.text}",
+        )
+
+    resp = json.loads(response.content)
+    return resp["choices"][0]["message"]["content"]
+
+
 def handle_recv_txt_msg(j):
     print(j)
 
@@ -285,7 +322,7 @@ def handle_recv_txt_msg(j):
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(enableGPT4):
         chatbot = ChatGPTbotUnofficial(
-            rev_config,
+            local_config,
             conversation_id=None,
             parent_id=None,
         )
@@ -308,7 +345,11 @@ def handle_recv_txt_msg(j):
         __reply(wx_id, room_id, "<系统消息> 重置对话与设置...", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(sdImgKey):
+        __reply(wx_id, room_id, "<系统消息> 正在为您生成图片...", is_room)
         content = re.sub("^" + sdImgKey, "", content, 1).lstrip()
+
+        content = translate(content)
+
         prompt_list = re.split(sdNegativePromptKey, content)
 
         ig = ImgTask(ws, prompt_list, wx_id, room_id, is_room, "2.1")
@@ -325,7 +366,7 @@ def handle_recv_txt_msg(j):
     ):
         if chatbot is None:
             chatbot = ChatGPTbot(
-                api_key=rev_config["api_key"], proxy=rev_config["proxy"]
+                api_key=local_config["api_key"], proxy=local_config["proxy"]
             )
             # chatbot = ChatGPTbotUnofficial(
             #     rev_config,

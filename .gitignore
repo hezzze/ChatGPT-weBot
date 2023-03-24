@@ -2,8 +2,9 @@
 **/__pycache__
 
 .config/bing_cookies.json
-.config/revChatGPT
+.config/local_config.json
 
 .vscode
 
 .cache
+venv
