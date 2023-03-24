@@ -8,7 +8,7 @@ import base64
 import os.path
 import websocket
 
-from shared import *
+from client.lib.shared import *
 from revChat.V1 import Chatbot as ChatGPTbotUnofficial
 from bing.EdgeGPT import Chatbot as BingBot
 from revChat.V3 import Chatbot as ChatGPTbot
@@ -65,6 +65,7 @@ def send_pic_msg(wx_id, content):
 
 class ChatTask:
     def __init__(self, chatbot, ws, content, wx_id, room_id, is_room, room_replies):
+        self.chatbot = chatbot
         self.ws = ws
         self.content = content
         self.bot = chatbot

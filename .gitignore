@@ -5,3 +5,5 @@
 .config/revChatGPT
 
 .vscode
+
+.cache

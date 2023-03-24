@@ -12,5 +12,7 @@
   "regenerateKey": "-rg",
   "rollbackKey": "-rb",
   "enableBingChat": "!bing",
-  "enableGPT4": "!gpt4"
+  "enableGPT4": "!gpt4",
+  "sdImgKey": "!sdraw",
+  "sdNegativePromptKey": "-n"
 }
