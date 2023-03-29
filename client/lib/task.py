@@ -7,6 +7,7 @@ import random
 import base64
 import os.path
 import websocket
+from websockets import connect
 
 from client.lib.shared import *
 from revChat.V1 import Chatbot as ChatGPTbotUnofficial
@@ -14,6 +15,8 @@ from bing.EdgeGPT import Chatbot as BingBot
 from revChat.V3 import Chatbot as ChatGPTbot
 
 loop = asyncio.get_event_loop()
+
+from client.lib.local_config import local_config
 
 
 def getid():
@@ -215,3 +218,54 @@ class ImgTask:
         )
         self.img_ws.keep_running = False
         self.img_ws.run_forever()
+
+
+class MJImgTask:
+    def __init__(self, ws, prompt, wx_id, room_id, is_room):
+        self.ws = ws
+        self.prompt = prompt
+        self.wx_id = wx_id
+        self.room_id = room_id
+        self.is_room = is_room
+
+        self.img_ws = None
+
+    def play(self):
+        self.times += 1
+        loop.run_until_complete(self.request())
+
+    async def request(self):
+        async with connect(local_config["socket_uri"]) as websocket:
+            await websocket.send(
+                json.dumps(
+                    [
+                        "generate_image",
+                        {
+                            "prompt": self.prompt,
+                        },
+                    ]
+                )
+            )
+
+            while True:
+                try:
+                    decoded = json.loads(await websocket.recv())
+                except Exception as error:
+                    print(error)
+                    break
+                print(decoded)
+                if decoded["message"] == "completed":
+                    for file_name in decoded["files"]:
+                        self.ws.send(
+                            send_pic_msg(
+                                wx_id=self.room_id if self.is_room else self.wx_id,
+                                content=os.path.join(
+                                    local_config["image_folder"], file_name
+                                ),
+                            )
+                        )
+                        time.sleep(1.0)
+
+                    break
+
+        print(await websocket.recv())

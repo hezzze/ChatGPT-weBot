@@ -14,5 +14,6 @@
   "enableBingChat": "!bing",
   "enableGPT4": "!gpt4",
   "sdImgKey": "!sdraw",
-  "sdNegativePromptKey": "-n"
+  "sdNegativePromptKey": "-n",
+  "midImgKey": "!midraw"
 }

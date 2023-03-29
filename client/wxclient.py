@@ -36,6 +36,7 @@ enableBingChat = config["enableBingChat"]
 enableGPT4 = config["enableGPT4"]
 sdImgKey = config["sdImgKey"]
 sdNegativePromptKey = config["sdNegativePromptKey"]
+midImgKey = config["midImgKey"]
 
 # data
 chatbots = dict()
@@ -361,6 +362,22 @@ def handle_recv_txt_msg(j):
 
         ig = ImgTask(ws, prompt_list, wx_id, room_id, is_room, "2.1")
         img_que.put(ig)
+
+    elif (not is_room or (is_room and is_mention)) and content.startswith(midImgKey):
+        __reply(wx_id, room_id, "<系统消息> 正在为您生成图片 （Mid v5）...", is_room)
+        content = re.sub("^" + midImgKey, "", content, 1).lstrip()
+
+        try:
+            prompt = translate(content)
+
+        except Exception as error:
+            print("!!", error)
+            reply = "<系统信息>\n服务不可用，请稍后尝试..."
+
+        print(f"-- prompt: {prompt}")
+
+        task = MJImgTask(ws, prompt, wx_id, room_id, is_room)
+        img_que.put(task)
 
     elif (
         autoReply
