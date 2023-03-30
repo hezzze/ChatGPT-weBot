@@ -37,6 +37,7 @@ enableGPT4 = config["enableGPT4"]
 sdImgKey = config["sdImgKey"]
 sdNegativePromptKey = config["sdNegativePromptKey"]
 midImgKey = config["midImgKey"]
+midParamKey = config["midParamKey"]
 
 # data
 chatbots = dict()
@@ -255,7 +256,7 @@ def translate(content, api_key=local_config["api_key"], proxy=local_config["prox
             "messages": [
                 {
                     "role": "user",
-                    "content": f"translate '{content}'  with only the translation",
+                    "content": f"translate '{content}' to EN, translation only",
                 }
             ],
             # kwargs
@@ -365,10 +366,13 @@ def handle_recv_txt_msg(j):
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(midImgKey):
         __reply(wx_id, room_id, "<系统消息> 正在为您生成图片 （Mid v5）...", is_room)
+
         content = re.sub("^" + midImgKey, "", content, 1).lstrip()
 
+        prompt_parts = re.split(midParamKey, content)
+
         try:
-            prompt = translate(content)
+            prompt = f"{translate(prompt_parts[0])}{prompt_parts[1] if midParamKey in content else ''}"
 
         except Exception as error:
             print("!!", error)

@@ -15,5 +15,6 @@
   "enableGPT4": "!gpt4",
   "sdImgKey": "!sdraw",
   "sdNegativePromptKey": "-n",
-  "midImgKey": "!midraw"
+  "midImgKey": "!midraw",
+  "midParamKey": "!param"
 }
