@@ -231,11 +231,18 @@ class MJImgTask:
         self.img_ws = None
 
     def play(self):
-        self.times += 1
-        loop.run_until_complete(self.request())
+        try:
+            asyncio.run(self.request())
+
+        except Exception as error:
+            print(error)
+            reply = "<系统信息>\n服务暂时不可用，请稍后尝试..."
+            self.__reply(reply)
+
+
 
     async def request(self):
-        async with connect(local_config["socket_uri"]) as websocket:
+        async with connect(uri=local_config["socket_uri"], ping_timeout=120) as websocket:
             await websocket.send(
                 json.dumps(
                     [
@@ -248,11 +255,11 @@ class MJImgTask:
             )
 
             while True:
-                try:
-                    decoded = json.loads(await websocket.recv())
-                except Exception as error:
-                    print(error)
-                    break
+                # if the websocket is closed prematurely 
+                # the following will raise an exception which is intended
+                # timeout set as ping_timeout 
+                decoded = json.loads(await websocket.recv())
+                
                 print(decoded)
                 if decoded["message"] == "completed":
                     for file_name in decoded["files"]:
@@ -267,5 +274,22 @@ class MJImgTask:
                         time.sleep(1.0)
 
                     break
+    
 
-        print(await websocket.recv())
+    def __reply(self, reply):
+        if self.is_room:
+            # ws.send(send_txt_msg(text_string=reply, wx_id=room_id))
+
+            # queue replies
+
+            with self.lock:  # need thread safety
+                if not (self.wx_id, self.room_id) in self.room_replies:
+                    self.room_replies[(self.wx_id, self.room_id)] = [reply]
+                else:
+                    self.room_replies[(self.wx_id, self.room_id)].append(reply)
+
+            self.ws.send(get_chat_nick_p(wx_id=self.wx_id, room_id=self.room_id))
+            # ws.send(send_at_meg(wx_id=wx_id, room_id=room_id, content=reply, nickname=wx_id))
+
+        else:
+            self.ws.send(send_txt_msg(text_string=reply, wx_id=self.wx_id))
