@@ -256,7 +256,7 @@ def translate(content, api_key=local_config["api_key"], proxy=local_config["prox
             "messages": [
                 {
                     "role": "user",
-                    "content": f"translate '{content}' to EN, translation only",
+                    "content": f"translate '{content}' to english, reply only translation, if already english just echo back",
                 }
             ],
             # kwargs
