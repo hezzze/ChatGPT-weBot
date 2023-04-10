@@ -221,7 +221,7 @@ class ImgTask:
 
 
 class MJImgTask:
-    def __init__(self, ws, prompt, wx_id, room_id, is_room):
+    def __init__(self, ws, prompt, wx_id, room_id, is_room, room_replies):
         self.ws = ws
         self.prompt = prompt
         self.wx_id = wx_id
@@ -229,15 +229,40 @@ class MJImgTask:
         self.is_room = is_room
 
         self.img_ws = None
+        self.lock = threading.Lock()
+        self.room_replies = room_replies
 
     def play(self):
         try:
             asyncio.run(self.request())
 
         except Exception as error:
-            print(error)
-            reply = "<系统信息>\n服务暂时不可用，请稍后尝试..."
+            print("!!", error)
+            reply = "<系统信息>\n未知错误，请稍后尝试..."
             self.__reply(reply)
+
+
+    async def wait_for_image(self, websocket):
+         while True:
+            # if the websocket is closed prematurely 
+            # the following will raise an exception which is intended
+            # timeout set as ping_timeout 
+            decoded = json.loads(await websocket.recv())
+            
+            print(decoded)
+            if decoded["message"] == "completed":
+                for file_name in decoded["files"]:
+                    self.ws.send(
+                        send_pic_msg(
+                            wx_id=self.room_id if self.is_room else self.wx_id,
+                            content=os.path.join(
+                                local_config["image_folder"], file_name
+                            ),
+                        )
+                    )
+                    time.sleep(1.0)
+
+                break
 
 
 
@@ -254,26 +279,13 @@ class MJImgTask:
                 )
             )
 
-            while True:
-                # if the websocket is closed prematurely 
-                # the following will raise an exception which is intended
-                # timeout set as ping_timeout 
-                decoded = json.loads(await websocket.recv())
-                
-                print(decoded)
-                if decoded["message"] == "completed":
-                    for file_name in decoded["files"]:
-                        self.ws.send(
-                            send_pic_msg(
-                                wx_id=self.room_id if self.is_room else self.wx_id,
-                                content=os.path.join(
-                                    local_config["image_folder"], file_name
-                                ),
-                            )
-                        )
-                        time.sleep(1.0)
-
-                    break
+            try:
+                await asyncio.wait_for(self.wait_for_image(websocket), timeout=120)
+    
+            except asyncio.TimeoutError:
+                reply = "⚠️系统信息⚠️\n 生成图片超时，请稍后再试..."
+                self.__reply(reply)
+                await websocket.close()
     
 
     def __reply(self, reply):

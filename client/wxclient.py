@@ -376,11 +376,12 @@ def handle_recv_txt_msg(j):
 
         except Exception as error:
             print("!!", error)
-            reply = "<系统信息>\n服务不可用，请稍后尝试..."
+            reply = "<系统信息>\n翻译服务不可用，请稍后尝试..."
+            return
 
         print(f"-- prompt: {prompt}")
 
-        task = MJImgTask(ws, prompt, wx_id, room_id, is_room)
+        task = MJImgTask(ws, prompt, wx_id, room_id, is_room, room_replies)
         img_que.put(task)
 
     elif (
