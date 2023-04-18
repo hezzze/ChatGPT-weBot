@@ -280,7 +280,7 @@ class MJImgTask:
             )
 
             try:
-                await asyncio.wait_for(self.wait_for_image(websocket), timeout=120)
+                await asyncio.wait_for(self.wait_for_image(websocket), timeout=240)
     
             except asyncio.TimeoutError:
                 reply = "⚠️系统信息⚠️\n 生成图片超时，请稍后再试..."
