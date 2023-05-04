@@ -323,10 +323,8 @@ def handle_recv_txt_msg(j):
         __reply(wx_id, room_id, "<系统消息> 切换到 Bing chat...", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(enableGPT4):
-        chatbot = ChatGPTbotUnofficial(
-            local_config,
-            conversation_id=None,
-            parent_id=None,
+        chatbot = ChatGPTbot(
+            api_key=local_config["api_key"], proxy=local_config["proxy"], engine="gpt-4"
         )
         if is_room:
             chatbots.pop((wx_id, room_id), None)
@@ -335,7 +333,7 @@ def handle_recv_txt_msg(j):
             chatbots.pop((wx_id, ""), None)
             chatbots[(wx_id, "")] = chatbot
 
-        __reply(wx_id, room_id, "<系统消息> 切换到 GPT4 测试模式...", is_room)
+        __reply(wx_id, room_id, "⚠️系统消息⚠️\n切换到 GPT4 测试模式...", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(
         resetChatKey
