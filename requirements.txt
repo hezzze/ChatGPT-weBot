@@ -1,10 +1,11 @@
 requests
 OpenAIAuth==0.3.2
 websocket_client==0.59.0
-tiktoken
+tiktoken>=0.3.0
 openai
 httpx
 asyncio
 prompt_toolkit
 rich
 websockets
+async_tio

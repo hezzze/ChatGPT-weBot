@@ -10,9 +10,9 @@ import websocket
 from websockets import connect
 
 from client.lib.shared import *
-from revChat.V1 import Chatbot as ChatGPTbotUnofficial
+from revChatGPT.V1 import Chatbot as ChatGPTbotUnofficial
 from bing.EdgeGPT import Chatbot as BingBot
-from revChat.V3 import Chatbot as ChatGPTbot
+from revChatGPT.V3 import Chatbot as ChatGPTbot
 
 loop = asyncio.get_event_loop()
 

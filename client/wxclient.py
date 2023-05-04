@@ -6,9 +6,8 @@ import websocket
 import asyncio
 import requests
 
-from revChat.V1 import Chatbot as ChatGPTbotUnofficial, configure
 from bing.EdgeGPT import Chatbot as BingBot
-from revChat.V3 import Chatbot as ChatGPTbot
+from revChatGPT.V3 import Chatbot as ChatGPTbot
 
 from client.lib.task import *
 from client.lib.threads import *
