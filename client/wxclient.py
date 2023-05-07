@@ -311,28 +311,30 @@ def handle_recv_txt_msg(j):
             content = re.sub("@\S+\s+", "", content)
 
     if (not is_room or (is_room and is_mention)) and content.startswith(enableBingChat):
-        chatbot = BingBot(cookiePath="./.config/bing_cookies.json")
-        if is_room:
-            chatbots.pop((wx_id, room_id), None)
-            chatbots[(wx_id, room_id)] = chatbot
-        else:
-            chatbots.pop((wx_id, ""), None)
-            chatbots[(wx_id, "")] = chatbot
+        # chatbot = BingBot(cookiePath="./.config/bing_cookies.json")
+        # if is_room:
+        #     chatbots.pop((wx_id, room_id), None)
+        #     chatbots[(wx_id, room_id)] = chatbot
+        # else:
+        #     chatbots.pop((wx_id, ""), None)
+        #     chatbots[(wx_id, "")] = chatbot
 
-        __reply(wx_id, room_id, "<系统消息> 切换到 Bing chat...", is_room)
+        # __reply(wx_id, room_id, "⚠️系统消息⚠️\n 切换到 Bing chat...", is_room)
+        __reply(wx_id, room_id, f"⚠️系统消息⚠️\n该模式暂不可用({enableBingChat})", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(enableGPT4):
-        chatbot = ChatGPTbot(
-            api_key=local_config["api_key"], proxy=local_config["proxy"], engine="gpt-4"
-        )
-        if is_room:
-            chatbots.pop((wx_id, room_id), None)
-            chatbots[(wx_id, room_id)] = chatbot
-        else:
-            chatbots.pop((wx_id, ""), None)
-            chatbots[(wx_id, "")] = chatbot
+        # chatbot = ChatGPTbot(
+        #     api_key=local_config["api_key"], proxy=local_config["proxy"], engine="gpt-4"
+        # )
+        # if is_room:
+        #     chatbots.pop((wx_id, room_id), None)
+        #     chatbots[(wx_id, room_id)] = chatbot
+        # else:
+        #     chatbots.pop((wx_id, ""), None)
+        #     chatbots[(wx_id, "")] = chatbot
 
-        __reply(wx_id, room_id, "⚠️系统消息⚠️\n切换到 GPT4 测试模式...", is_room)
+        # __reply(wx_id, room_id, "⚠️系统消息⚠️\n切换到 GPT4 测试模式...", is_room)
+        __reply(wx_id, room_id, f"⚠️系统消息⚠️\n该模式暂不可用({enableGPT4})", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(
         resetChatKey
@@ -341,10 +343,10 @@ def handle_recv_txt_msg(j):
             chatbots.pop((wx_id, room_id), None)
         else:
             chatbots.pop((wx_id, ""), None)
-        __reply(wx_id, room_id, "<系统消息> 重置对话与设置...", is_room)
+        __reply(wx_id, room_id, "⚠️系统消息⚠️\n重置对话与设置...", is_room)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(sdImgKey):
-        __reply(wx_id, room_id, "<系统消息> 正在为您生成图片...", is_room)
+        __reply(wx_id, room_id, "⚠️系统消息⚠️\n 正在为您生成图片...", is_room)
         content = re.sub("^" + sdImgKey, "", content, 1).lstrip()
 
         try:
@@ -352,7 +354,7 @@ def handle_recv_txt_msg(j):
 
         except Exception as error:
             print("!!", error)
-            reply = "<系统信息>\n服务不可用，请稍后尝试..."
+            reply = "⚠️系统信息⚠️\n\n服务不可用，请稍后尝试..."
 
         print(f"-- prompt: {content}")
 
@@ -362,24 +364,25 @@ def handle_recv_txt_msg(j):
         img_que.put(ig)
 
     elif (not is_room or (is_room and is_mention)) and content.startswith(midImgKey):
-        __reply(wx_id, room_id, "<系统消息> 正在为您生成图片 （Mid v5）...", is_room)
+        # __reply(wx_id, room_id, "⚠️系统消息⚠️\n 正在为您生成图片 （Mid v5）...", is_room)
 
-        content = re.sub("^" + midImgKey, "", content, 1).lstrip()
+        # content = re.sub("^" + midImgKey, "", content, 1).lstrip()
 
-        prompt_parts = re.split(midParamKey, content)
+        # prompt_parts = re.split(midParamKey, content)
 
-        try:
-            prompt = f"{translate(prompt_parts[0])}{prompt_parts[1] if midParamKey in content else ''}"
+        # try:
+        #     prompt = f"{translate(prompt_parts[0])}{prompt_parts[1] if midParamKey in content else ''}"
 
-        except Exception as error:
-            print("!!", error)
-            reply = "<系统信息>\n翻译服务不可用，请稍后尝试..."
-            return
+        # except Exception as error:
+        #     print("!!", error)
+        #     reply = "⚠️系统信息⚠️\n\n翻译服务不可用，请稍后尝试..."
+        #     return
 
-        print(f"-- prompt: {prompt}")
+        # print(f"-- prompt: {prompt}")
 
-        task = MJImgTask(ws, prompt, wx_id, room_id, is_room, room_replies)
-        img_que.put(task)
+        # task = MJImgTask(ws, prompt, wx_id, room_id, is_room, room_replies)
+        # img_que.put(task)
+        __reply(wx_id, room_id, f"⚠️系统消息⚠️\n该模式暂不可用({midImgKey})", is_room)
 
     elif (
         autoReply

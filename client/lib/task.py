@@ -97,7 +97,7 @@ class ChatTask:
 
         except Exception as error:
             print("!!!", error)
-            reply = "<系统信息>\n服务暂时不可用，请稍后尝试..."
+            reply = "⚠️系统消息⚠️\n服务暂时不可用，请稍后尝试..."
 
         # reply = f"###testing, replying to {wx_id}..."
 
@@ -158,7 +158,7 @@ class ImgTask:
             if self.times < 5:
                 # raise
                 send_txt_msg(
-                    text_string="<系统信息>\n连接Stable diffuison 发生错误，请稍后尝试...",
+                    text_string="⚠️系统消息⚠️\n\n连接Stable diffuison 发生错误，请稍后尝试...",
                     wx_id=self.room_id if self.is_room else self.wx_id,
                 )
             else:
@@ -238,7 +238,7 @@ class MJImgTask:
 
         except Exception as error:
             print("!!", error)
-            reply = "<系统信息>\n未知错误，请稍后尝试..."
+            reply = "⚠️系统消息⚠️\n\n未知错误，请稍后尝试..."
             self.__reply(reply)
 
 
@@ -283,7 +283,7 @@ class MJImgTask:
                 await asyncio.wait_for(self.wait_for_image(websocket), timeout=240)
     
             except asyncio.TimeoutError:
-                reply = "⚠️系统信息⚠️\n 生成图片超时，请稍后再试..."
+                reply = "⚠️系统消息⚠️\n 生成图片超时，请稍后再试..."
                 self.__reply(reply)
                 await websocket.close()
     
